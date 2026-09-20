@@ -12,14 +12,16 @@ Poor code fixes are welcome, though I doubt anyone will even use this, not sayin
 
 - [x] Boots Minecraft (1.16.5, 26.1.2)
 - [x] Runs Vulkan apps
+- [x] Supports macOS 
 
 #### Untested
 - [ ] Games other than Minecraft (e.g. Vintage Story)
-- [ ] Android/iOS/macOS
+- [ ] Android/iOS
 
 #### TODO
 - [ ] Windows/win32 support
 - [ ] Implement missing stuff
+- [ ] Fix macOS exclusive fullscreen (clanker made a temporary "fix", I want better one)
 - [ ] Add LICENSE and related stuff
 
 # Build
