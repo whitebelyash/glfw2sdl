@@ -90,6 +90,11 @@ GLFWAPI int glfwInit(void)
 
     _glfwLogBootInfo();
 
+    /* Protect the game's input from foreign SDL3 consumers (e.g. the
+     * Controlify mod), which may install a dropping event filter on the
+     * shared SDL3 instance after we initialize. */
+    _glfwInstallEventCooperation();
+
     _glfwRefreshMonitors();
     _glfwRefreshJoysticks();
 
@@ -141,6 +146,8 @@ GLFWAPI void glfwTerminate(void)
             SDL_CloseJoystick(js->sdlJoystick);
         memset(js, 0, sizeof(*js));
     }
+
+    _glfwRemoveEventCooperation();
 
     SDL_Quit();
 

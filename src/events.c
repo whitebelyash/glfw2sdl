@@ -411,14 +411,165 @@ static void handleEvent(const SDL_Event *event)
 }
 
 /* ------------------------------------------------------------------ */
+/* Event cooperation (coexistence with other SDL3 consumers)           */
+/* ------------------------------------------------------------------ */
+/*                                                                    */
+/* In Minecraft, the Controlify mod is a second SDL3 consumer: it     */
+/* initializes its own SDL3 and installs a global event filter that   */
+/* drops everything except joystick add/remove.  When its SDL calls   */
+/* land on the same SDL3 instance as ours (library soname merging),   */
+/* the game's keyboard/mouse events are dropped at push time and      */
+/* never reach our pump -- input goes completely silent.              */
+/*                                                                    */
+/* We defend by keeping a pass-through event filter installed:       */
+/* events are never dropped by a foreign filter for more than one     */
+/* frame.  Joystick/gamepad events are still translated for GLFW's    */
+/* joystick API, but left on the shared queue so the other consumer   */
+/* can poll them too.                                                 */
+
+/* Marker makes our own filter identifiable via SDL_GetEventFilter. */
+static char _glfwEventFilterMarker;
+
+static bool SDLCALL _glfwEventFilterPassThrough(void *userdata, SDL_Event *event)
+{
+    (void) userdata;
+    (void) event;
+    return true; /* never drop */
+}
+
+/* Restore the pass-through filter if another consumer replaced it. */
+static void _glfwRestoreEventFilter(void)
+{
+    SDL_EventFilter filter = NULL;
+    void *userdata = NULL;
+
+    if (SDL_GetEventFilter(&filter, &userdata) &&
+        filter == _glfwEventFilterPassThrough &&
+        userdata == &_glfwEventFilterMarker)
+    {
+        return; /* our filter is already in place */
+    }
+
+    SDL_SetEventFilter(_glfwEventFilterPassThrough, &_glfwEventFilterMarker);
+
+    if (!_glfw.eventFilterWarned)
+    {
+        _glfw.eventFilterWarned = true;
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_WARN,
+                       "Another SDL3 consumer replaced the event filter; "
+                       "restored pass-through (input coexistence)");
+    }
+}
+
+void _glfwInstallEventCooperation(void)
+{
+    SDL_EventFilter filter = NULL;
+    void *userdata = NULL;
+    const bool foreignFilter =
+        SDL_GetEventFilter(&filter, &userdata) &&
+        (filter != _glfwEventFilterPassThrough ||
+         userdata != &_glfwEventFilterMarker);
+
+    SDL_SetEventFilter(_glfwEventFilterPassThrough, &_glfwEventFilterMarker);
+
+    if (foreignFilter)
+    {
+        /* A host consumer had its own (possibly dropping) filter; ours
+         * takes over so the game's input is never filtered out. */
+        _glfw.eventFilterWarned = true;
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_WARN,
+                       "Replaced a foreign SDL event filter with "
+                       "pass-through (input coexistence)");
+    }
+    else
+    {
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO,
+                       "Installed pass-through SDL event filter "
+                       "(safe with other SDL3 consumers)");
+    }
+}
+
+void _glfwRemoveEventCooperation(void)
+{
+    SDL_EventFilter filter = NULL;
+    void *userdata = NULL;
+
+    /* Only clear the filter if it is still ours, so a host consumer's
+     * own filter is left alone. */
+    if (SDL_GetEventFilter(&filter, &userdata) &&
+        filter == _glfwEventFilterPassThrough &&
+        userdata == &_glfwEventFilterMarker)
+    {
+        SDL_SetEventFilter(NULL, NULL);
+    }
+    _glfw.eventFilterWarned = false;
+}
+
+/* Events that belong to any other SDL consumer polling the shared queue.
+ * They are translated for GLFW's joystick API, but a copy is left on the
+ * queue so the other consumer still receives them. */
+static bool _glfwEventBelongsToOtherConsumers(SDL_EventType type)
+{
+    switch (type)
+    {
+        case SDL_EVENT_JOYSTICK_ADDED:
+        case SDL_EVENT_JOYSTICK_REMOVED:
+        case SDL_EVENT_GAMEPAD_ADDED:
+        case SDL_EVENT_GAMEPAD_REMOVED:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* Translate a single event for GLFW, leaving joystick/gamepad events on
+ * the shared queue for other SDL consumers (safe outside a poll loop:
+ * SDL_PushEvent only re-queues, it does not re-modify SDL's state). */
+static void _glfwProcessEvent(const SDL_Event *event)
+{
+    if (_glfwEventBelongsToOtherConsumers(event->type))
+    {
+        handleEvent(event);
+        SDL_PushEvent((SDL_Event *) event);
+    }
+    else
+        handleEvent(event);
+}
+
+/* ------------------------------------------------------------------ */
 /* Public event API                                                    */
 /* ------------------------------------------------------------------ */
 
-void _glfwPumpEvents(void)
+/* Drain the shared SDL event queue.  Returns the number of events that
+ * were dequeued (translated for GLFW).  Joystick/gamepad events are
+ * re-posted so other SDL consumers in the process still see them. */
+int _glfwPumpEvents(void)
 {
+    _glfwRestoreEventFilter();
+    SDL_PumpEvents();
+
     SDL_Event event;
+    SDL_Event shared[8];
+    int sharedCount = 0;
+    int processed = 0;
+
     while (SDL_PollEvent(&event))
+    {
+        processed++;
+        if (_glfwEventBelongsToOtherConsumers(event.type))
+        {
+            /* Collect first and re-post after the drain: re-posting inside
+             * the poll loop would make the loop pick up the event again. */
+            if (sharedCount < (int)(sizeof(shared) / sizeof(shared[0])))
+                shared[sharedCount++] = event;
+        }
         handleEvent(&event);
+    }
+
+    for (int i = 0; i < sharedCount; i++)
+        SDL_PushEvent(&shared[i]);
+
+    return processed;
 }
 
 GLFWAPI void glfwPollEvents(void)
@@ -459,14 +610,21 @@ GLFWAPI void glfwWaitEvents(void)
         return;
     }
 
-    while (true)
+    /* Wake as soon as at least one event was processed.  SDL_WaitEventTimeout
+     * blocks (no busy loop) and returns the moment an event arrives, so a
+     * wake is not delayed by the 100 ms poll interval. */
+    for (;;)
     {
+        if (_glfwPumpEvents() > 0)
+            return;
+
         SDL_Event event;
-        SDL_WaitEvent(&event);
-        handleEvent(&event);
-        /* Process anything that arrived while we were blocked. */
-        _glfwPumpEvents();
-        return;
+        if (SDL_WaitEventTimeout(&event, 100))
+        {
+            _glfwProcessEvent(&event);
+            _glfwPumpEvents();
+            return;
+        }
     }
 }
 
@@ -483,9 +641,32 @@ GLFWAPI void glfwWaitEventsTimeout(double timeout)
         return;
     }
 
-    SDL_Event event;
-    if (SDL_WaitEventTimeout(&event, (Sint32)(timeout * 1000.0)))
-        handleEvent(&event);
+    /* Cap the timeout so seconds * 1000 fits in the SDL Sint32. */
+    const double maxSeconds = 2147483.0;
+    double remaining = timeout > maxSeconds ? maxSeconds : timeout;
 
-    _glfwPumpEvents();
+    for (;;)
+    {
+        /* Handle anything that is already queued; this also means the
+         * function returns immediately when events are pending. */
+        if (_glfwPumpEvents() > 0)
+            return;
+
+        if (remaining <= 0.0)
+            return; /* nothing arrived within the timeout */
+
+        Sint32 ms = (Sint32)(remaining * 1000.0);
+        if (ms < 1)
+            ms = 1;
+
+        SDL_Event event;
+        if (SDL_WaitEventTimeout(&event, ms))
+        {
+            _glfwProcessEvent(&event);
+            _glfwPumpEvents();
+            return;
+        }
+
+        remaining = 0.0; /* the timeout elapsed */
+    }
 }

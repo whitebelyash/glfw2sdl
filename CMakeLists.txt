@@ -10,6 +10,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 option(GLFW_SDL_BUILD_STATIC "Also build a static glfw library" OFF)
 option(GLFW_SDL_SMOKE_TEST "Build the SDL-backed GLFW smoke test" ON)
+option(GLFW_SDL_COEXIST_TEST "Build the SDL coexistence regression test" ON)
 
 # ---------------------------------------------------------------------------
 # SDL3 discovery: prefer the CMake config package, fall back to pkg-config.
@@ -110,6 +111,20 @@ if(GLFW_SDL_SMOKE_TEST)
     add_executable(glfw_smoke_test tests/smoke_test.c)
     target_link_libraries(glfw_smoke_test PRIVATE glfw)
     target_include_directories(glfw_smoke_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+endif()
+
+# Coexistence test: impersonates a second SDL3 consumer (the Controlify
+# mod) on the same SDL3 instance to verify the game's input survives.
+if(GLFW_SDL_COEXIST_TEST)
+    add_executable(glfw_coexist_test tests/coexist_test.c)
+    target_link_libraries(glfw_coexist_test PRIVATE glfw)
+    if(TARGET SDL3::SDL3)
+        target_link_libraries(glfw_coexist_test PRIVATE SDL3::SDL3)
+    else()
+        target_link_libraries(glfw_coexist_test PRIVATE PkgConfig::SDL3)
+    endif()
+    target_include_directories(glfw_coexist_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
 

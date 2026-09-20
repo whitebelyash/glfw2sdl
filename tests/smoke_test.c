@@ -271,6 +271,20 @@ int main(void)
     CHECK(glfwGetError(NULL) == GLFW_NO_ERROR,
           "glfwPostEmptyEvent leaves no error");
 
+    /* Wait-path wake: a posted empty event must wake glfwWaitEventsTimeout
+     * promptly (the coexistence pump blocks via SDL_WaitEventTimeout and
+     * must not busy-loop or hang). */
+    {
+        const double start = glfwGetTime();
+        glfwPostEmptyEvent();
+        glfwWaitEventsTimeout(1.0);
+        const double elapsed = glfwGetTime() - start;
+        CHECK(elapsed < 0.5,
+              "glfwWaitEventsTimeout wakes on posted event (%.3fs)", elapsed);
+        CHECK(glfwGetError(NULL) == GLFW_NO_ERROR,
+              "glfwWaitEventsTimeout leaves no error");
+    }
+
     /* GLFW_NO_API window: no GL context */
     glfwMakeContextCurrent(window);
     CHECK(glfwGetError(NULL) == GLFW_NO_WINDOW_CONTEXT,

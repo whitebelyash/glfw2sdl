@@ -197,6 +197,12 @@ typedef struct _GLFWglobal
     SDL_LogOutputFunction prevLogOutput;
     void *prevLogUserdata;
 
+    /* Event cooperation with other SDL3 consumers sharing our SDL
+     * instance (in Minecraft this is the Controlify mod).  The shim keeps
+     * a pass-through event filter installed; if a foreign consumer
+     * replaces it with a dropping one we restore ours and log it once. */
+    bool eventFilterWarned;   /* a foreign filter was replaced (log once) */
+
     _GLFWjoystick joysticks[GLFW_JOYSTICK_LAST + 1];
 
     /* Time */
@@ -248,7 +254,9 @@ SDL_JoystickID _glfwJoystickSlotToSDL(int jid);   /* 0 if not present      */
 _GLFWjoystick *_glfwSlot(int jid);
 void _glfwApplyCursor(_GLFWwindow *window);
 /* events.c */
-void _glfwPumpEvents(void);
+int _glfwPumpEvents(void); /* returns number of events processed */
+void _glfwInstallEventCooperation(void); /* after SDL_Init in glfwInit */
+void _glfwRemoveEventCooperation(void);  /* before SDL_Quit in glfwTerminate */
 bool _glfwAcceptsEvents(void); /* platform uses poll/wait */
 
 /* log.c -- SDL_Log redirection + boot diagnostics */
