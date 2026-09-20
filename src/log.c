@@ -84,7 +84,7 @@ void _glfwLogBootInfo(void)
     const char *driver = SDL_GetCurrentVideoDriver();
 
     SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO,
-                   "%s initialized (SDL %d.%d.%d, video driver: %s, "
+                   "glfw2sdl (reporting GLFW %s) initialized (SDL %d.%d.%d, video driver: %s, "
                    "platform: %s)",
                    glfwGetVersionString(),
                    v / 1000000, (v / 1000) % 1000, v % 1000,
