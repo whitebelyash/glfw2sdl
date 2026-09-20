@@ -129,8 +129,17 @@ static void handleMouseButton(_GLFWwindow *window, const SDL_MouseButtonEvent *b
     if (button < 0)
         return;
 
-    window->virtualX = bev->x;
-    window->virtualY = bev->y;
+    /* In relative (grabbed, GLFW_CURSOR_DISABLED) mode the position is
+     * virtualized from motion deltas, while the absolute coordinates on a
+     * button event reflect the OS pointer (typically warped to the window
+     * center) and would snap the virtual position back, making the camera
+     * jump when a button goes down or up.  Only sync when the cursor is
+     * free, where the button coordinates match the reported position. */
+    if (!window->relativeMode)
+    {
+        window->virtualX = bev->x;
+        window->virtualY = bev->y;
+    }
 
     const int action = bev->down ? GLFW_PRESS : GLFW_RELEASE;
 
