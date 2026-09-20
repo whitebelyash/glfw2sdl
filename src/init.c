@@ -257,5 +257,5 @@ GLFWAPI void glfwGetVersion(int *major, int *minor, int *rev)
 
 GLFWAPI const char *glfwGetVersionString(void)
 {
-    return "3.5.0 SDL3 GLFW-compat shim";
+    return "3.5.0-glfw2sdl";
 }
