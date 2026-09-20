@@ -20,7 +20,7 @@ Poor code fixes are welcome, though I doubt anyone will even use this, not sayin
 #### TODO
 - [ ] Windows/win32 support
 - [ ] Implement missing stuff
-- [ ] Add LICENSE
+- [ ] Add LICENSE and related stuff
 
 # Build
 
