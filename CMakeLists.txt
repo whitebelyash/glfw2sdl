@@ -47,7 +47,7 @@ add_library(glfw::glfw ALIAS glfw)
 # Make it compatible with projects expecting real GLFW
 set_target_properties(glfw PROPERTIES
     OUTPUT_NAME glfw
-    VERSION     ${PROJECT_VERSION}
+    VERSION     3.5.0
     SOVERSION   3.5
     C_STANDARD  11)
 
