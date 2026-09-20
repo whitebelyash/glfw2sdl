@@ -11,15 +11,16 @@ Poor code fixes are welcome, though I doubt anyone will even use this, not sayin
 # Status
 
 - [x] Boots Minecraft (1.16.5, 26.1.2)
+- [x] Runs Vulkan apps
 
 #### Untested
-- [ ] Vulkan/Metal
 - [ ] Games other than Minecraft (e.g. Vintage Story)
 - [ ] Android/iOS/macOS
 
 #### TODO
 - [ ] Windows/win32 support
 - [ ] Implement missing stuff
+- [ ] Add LICENSE
 
 # Build
 
