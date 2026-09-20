@@ -8,17 +8,90 @@
 #include "internal.h"
 
 /* ------------------------------------------------------------------ */
-/* Cursor application (used when the mouse enters a window)            */
+/* Cursor application (used when the mouse enters a window, when the   */
+/* window regains focus and after every cursor-mode change)            */
 /* ------------------------------------------------------------------ */
 
 void _glfwApplyCursor(_GLFWwindow *window)
 {
     if (!window)
         return;
-    if (window->cursorMode == GLFW_CURSOR_NORMAL)
+
+    switch (window->cursorMode)
     {
-        SDL_ShowCursor();
-        SDL_SetCursor(window->sdlCursor ? window->sdlCursor : SDL_GetDefaultCursor());
+        case GLFW_CURSOR_NORMAL:
+            SDL_SetWindowRelativeMouseMode(window->sdlWindow, false);
+            SDL_SetWindowMouseGrab(window->sdlWindow, false);
+            window->relativeMode = false;
+            SDL_ShowCursor();
+            SDL_SetCursor(window->sdlCursor ? window->sdlCursor
+                                            : SDL_GetDefaultCursor());
+            break;
+
+        case GLFW_CURSOR_HIDDEN:
+            SDL_SetWindowRelativeMouseMode(window->sdlWindow, false);
+            SDL_SetWindowMouseGrab(window->sdlWindow, false);
+            window->relativeMode = false;
+            SDL_HideCursor();
+            break;
+
+        case GLFW_CURSOR_DISABLED:
+            SDL_HideCursor();
+            SDL_SetWindowMouseGrab(window->sdlWindow, true);
+            SDL_SetWindowRelativeMouseMode(window->sdlWindow, true);
+            window->relativeMode = true;
+            break;
+
+        case GLFW_CURSOR_CAPTURED:
+            SDL_SetWindowMouseGrab(window->sdlWindow, true);
+            SDL_ShowCursor();
+            SDL_SetCursor(window->sdlCursor ? window->sdlCursor
+                                            : SDL_GetDefaultCursor());
+            break;
+
+        default:
+            break;
+    }
+}
+
+/* Per-frame cursor reconciliation.
+ *
+ * SDL's cursor visibility is global and a mouse grab can be released by
+ * the window system (focus loss, a grab-release hotkey, ...) without the
+ * application asking for it.  A cursor hidden for GLFW_CURSOR_DISABLED
+ * would then stay invisible over the window until the pointer leaves it
+ * or something re-sets the cursor shape.  Keep the cursor's visibility in
+ * sync with whether the grab we hide it for is actually in effect.
+ */
+void _glfwReconcileCursor(_GLFWwindow *window)
+{
+    if (!window)
+        return;
+
+    switch (window->cursorMode)
+    {
+        case GLFW_CURSOR_DISABLED:
+            /* The cursor is hidden only while the grab it relies on is
+             * active; once the grab is gone the pointer must be visible. */
+            if (!SDL_GetWindowMouseGrab(window->sdlWindow))
+                SDL_ShowCursor();
+            else if (SDL_CursorVisible())
+                SDL_HideCursor();
+            break;
+
+        case GLFW_CURSOR_HIDDEN:
+            if (SDL_CursorVisible())
+                SDL_HideCursor();
+            break;
+
+        case GLFW_CURSOR_NORMAL:
+        case GLFW_CURSOR_CAPTURED:
+            if (!SDL_CursorVisible())
+                SDL_ShowCursor();
+            break;
+
+        default:
+            break;
     }
 }
 
@@ -43,33 +116,17 @@ GLFWAPI void glfwSetInputMode(GLFWwindow *handle, int mode, int value)
             switch (value)
             {
                 case GLFW_CURSOR_NORMAL:
-                    SDL_SetWindowRelativeMouseMode(window->sdlWindow, false);
-                    SDL_SetWindowMouseGrab(window->sdlWindow, false);
-                    window->relativeMode = false;
-                    _glfwApplyCursor(window);
-                    break;
                 case GLFW_CURSOR_HIDDEN:
-                    SDL_SetWindowRelativeMouseMode(window->sdlWindow, false);
-                    SDL_SetWindowMouseGrab(window->sdlWindow, false);
-                    window->relativeMode = false;
-                    SDL_HideCursor();
-                    break;
                 case GLFW_CURSOR_DISABLED:
-                    SDL_HideCursor();
-                    SDL_SetWindowMouseGrab(window->sdlWindow, true);
-                    SDL_SetWindowRelativeMouseMode(window->sdlWindow, true);
-                    window->relativeMode = true;
-                    break;
                 case GLFW_CURSOR_CAPTURED:
-                    SDL_SetWindowMouseGrab(window->sdlWindow, true);
-                    SDL_ShowCursor();
+                    window->cursorMode = value;
+                    _glfwApplyCursor(window);
                     break;
                 default:
                     _glfwInputError(GLFW_INVALID_ENUM,
                                     "Invalid GLFW_CURSOR value 0x%08X", value);
                     return;
             }
-            window->cursorMode = value;
             break;
         }
 

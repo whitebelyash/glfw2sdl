@@ -253,12 +253,27 @@ static void handleWindowEvent(const SDL_WindowEvent *wev)
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
             if (window->focusCb)
                 window->focusCb((GLFWwindow *)window, GLFW_TRUE);
+            /* Re-apply the cursor mode: the window system may have
+             * released the grab or changed cursor visibility while the
+             * window was unfocused. */
+            _glfwApplyCursor(window);
             break;
 
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             if (window->focusCb)
                 window->focusCb((GLFWwindow *)window, GLFW_FALSE);
             resetWindowInput(window);
+            /* A grabbed + hidden cursor (GLFW_CURSOR_DISABLED) is only
+             * sensible while the window owns the grab; once it loses
+             * focus, release everything so the pointer becomes usable
+             * again.  Focus gain re-applies the mode. */
+            if (window->cursorMode == GLFW_CURSOR_DISABLED)
+            {
+                SDL_SetWindowRelativeMouseMode(window->sdlWindow, false);
+                SDL_SetWindowMouseGrab(window->sdlWindow, false);
+                window->relativeMode = false;
+                SDL_ShowCursor();
+            }
             break;
 
         case SDL_EVENT_WINDOW_MINIMIZED:
@@ -419,6 +434,12 @@ void _glfwPumpEvents(void)
     SDL_Event event;
     while (SDL_PollEvent(&event))
         handleEvent(&event);
+
+    /* Keep cursor visibility in sync with the actual grab state: the
+     * window system may have released a grab (focus loss, hotkey, ...)
+     * without the application noticing, leaving a hidden cursor behind. */
+    for (_GLFWwindow *window = _glfw.windowList; window; window = window->next)
+        _glfwReconcileCursor(window);
 }
 
 GLFWAPI void glfwPollEvents(void)

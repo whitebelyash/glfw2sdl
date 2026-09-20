@@ -247,6 +247,7 @@ void _glfwRefreshJoysticks(void);
 SDL_JoystickID _glfwJoystickSlotToSDL(int jid);   /* 0 if not present      */
 _GLFWjoystick *_glfwSlot(int jid);
 void _glfwApplyCursor(_GLFWwindow *window);
+void _glfwReconcileCursor(_GLFWwindow *window);   /* per-frame pump sync   */
 /* events.c */
 void _glfwPumpEvents(void);
 bool _glfwAcceptsEvents(void); /* platform uses poll/wait */

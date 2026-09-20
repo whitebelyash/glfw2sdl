@@ -171,9 +171,17 @@ int main(void)
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     CHECK(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED,
           "cursor mode round-trips DISABLED");
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    CHECK(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_HIDDEN,
+          "cursor mode round-trips HIDDEN");
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
+    CHECK(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_CAPTURED,
+          "cursor mode round-trips CAPTURED");
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     CHECK(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_NORMAL,
           "cursor mode round-trips NORMAL");
+    CHECK(glfwGetError(NULL) == GLFW_NO_ERROR,
+          "cursor mode round-trips leave no error");
 
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
     CHECK(glfwGetInputMode(window, GLFW_STICKY_KEYS) == GLFW_TRUE,
