@@ -965,6 +965,18 @@ GLFWAPI void glfwSetWindowMonitor(GLFWwindow *handle, GLFWmonitor *monitor,
             haveMode = true;
     }
 
+#if defined(__APPLE__)
+    /* macOS: always use the native fullscreen Space (the "green button"
+     * transition) instead of an exclusive display-mode switch.  SDL's cocoa
+     * driver animates into a Space only for fullscreen-desktop, i.e. when
+     * no exclusive mode is set; entering exclusive and exiting via a Space
+     * (or vice versa) is what made leaving fullscreen first pop to the
+     * fullscreen Space and then immediately fall back to the old workspace.
+     * By never setting an exclusive mode on macOS the window enters and
+     * leaves the same Space. */
+    haveMode = false;
+#endif
+
     SDL_SetWindowFullscreenMode(window->sdlWindow, haveMode ? &mode : NULL);
     SDL_SetWindowFullscreen(window->sdlWindow, true);
 }
