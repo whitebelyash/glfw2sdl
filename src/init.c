@@ -57,6 +57,10 @@ GLFWAPI int glfwInit(void)
 
     _glfwInitKeyTables();
 
+    /* Redirect SDL_Log to stdout so SDL's own boot-time messages land in
+     * our log stream (restored to the previous sink at glfwTerminate). */
+    _glfwInstallLogOutput();
+
     /* Translate the GLFW_PLATFORM init hint into an SDL video driver hint. */
     switch (_glfw.requestedPlatform)
     {
@@ -73,12 +77,18 @@ GLFWAPI int glfwInit(void)
 
     if (!SDL_Init(sdlSubsystems))
     {
+        const char *reason = SDL_GetError();
+        SDL_LogMessage(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_ERROR,
+                       "SDL3 initialization failed: %s", reason);
         _glfwInputError(GLFW_PLATFORM_ERROR,
-                        "SDL3 initialization failed: %s", SDL_GetError());
+                        "SDL3 initialization failed: %s", reason);
+        _glfwRestoreLogOutput();
         return GLFW_FALSE;
     }
 
     _glfw.resolvedPlatform = platformFromSdlDriver(SDL_GetCurrentVideoDriver());
+
+    _glfwLogBootInfo();
 
     _glfwRefreshMonitors();
     _glfwRefreshJoysticks();
@@ -133,6 +143,10 @@ GLFWAPI void glfwTerminate(void)
     }
 
     SDL_Quit();
+
+    /* Give the host application its previous/log-default SDL log sink back
+     * and reset our own (a later glfwInit re-installs the redirect). */
+    _glfwRestoreLogOutput();
 
     _glfw.initialized = GLFW_FALSE;
     _glfw.refcount = 0;

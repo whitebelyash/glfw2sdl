@@ -87,6 +87,22 @@ GLFWAPI void glfwSetInputMode(GLFWwindow *handle, int mode, int value)
             /* SDL's relative mode already provides raw-style motion deltas;
              * the flag only has an effect with a disabled cursor. */
             break;
+
+        case GLFW_UNLIMITED_MOUSE_BUTTONS:
+            /* SDL reports at most a handful of buttons, so this mostly
+             * serves API parity; when set, the mouse button callback is
+             * not limited to GLFW_MOUSE_BUTTON_LAST (see events.c). */
+            window->unlimitedMouseButtons = value ? true : false;
+            break;
+
+        case GLFW_IME:
+            window->imeEnabled = value ? true : false;
+            if (value)
+                SDL_StartTextInput(window->sdlWindow);
+            else
+                SDL_StopTextInput(window->sdlWindow);
+            break;
+
         default:
             _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
     }
@@ -114,6 +130,10 @@ GLFWAPI int glfwGetInputMode(GLFWwindow *handle, int mode)
             return window->lockKeyMods ? GLFW_TRUE : GLFW_FALSE;
         case GLFW_RAW_MOUSE_MOTION:
             return window->rawMouseMotion ? GLFW_TRUE : GLFW_FALSE;
+        case GLFW_UNLIMITED_MOUSE_BUTTONS:
+            return window->unlimitedMouseButtons ? GLFW_TRUE : GLFW_FALSE;
+        case GLFW_IME:
+            return window->imeEnabled ? GLFW_TRUE : GLFW_FALSE;
         default:
             _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
     }
@@ -201,6 +221,11 @@ GLFWAPI void glfwSetPreeditCursorRectangle(GLFWwindow *handle,
     window->preeditY = y;
     window->preeditW = w;
     window->preeditH = h;
+
+    /* Tell SDL where the text cursor is so the IME candidate window follows
+     * it (no-op on drivers without an IME). */
+    const SDL_Rect rect = { x, y, w, h };
+    SDL_SetTextInputArea(window->sdlWindow, &rect, 0);
 }
 
 GLFWAPI void glfwGetPreeditCursorRectangle(GLFWwindow *handle,

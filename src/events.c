@@ -123,7 +123,9 @@ static void handleMouseMotion(_GLFWwindow *window, const SDL_MouseMotionEvent *m
 
 static void handleMouseButton(_GLFWwindow *window, const SDL_MouseButtonEvent *bev)
 {
-    const int button = _glfwSdlMouseButtonToGLFW(bev->button);
+    int button = _glfwSdlMouseButtonToGLFW(bev->button);
+    if (button < 0 && window->unlimitedMouseButtons && bev->button >= 1)
+        button = (int)bev->button - 1; /* no GLFW_MOUSE_BUTTON_LAST limit */
     if (button < 0)
         return;
 
@@ -132,10 +134,13 @@ static void handleMouseButton(_GLFWwindow *window, const SDL_MouseButtonEvent *b
 
     const int action = bev->down ? GLFW_PRESS : GLFW_RELEASE;
 
-    if (action == GLFW_RELEASE && window->stickyMouseButtons)
-        window->mouseButtons[button] = _GLFW_STICK_PRESS;
-    else
-        window->mouseButtons[button] = action;
+    if (button <= GLFW_MOUSE_BUTTON_LAST)
+    {
+        if (action == GLFW_RELEASE && window->stickyMouseButtons)
+            window->mouseButtons[button] = _GLFW_STICK_PRESS;
+        else
+            window->mouseButtons[button] = action;
+    }
 
     const int mods = _glfwModsToGLFW(SDL_GetModState(), window->lockKeyMods);
     if (window->mouseButtonCb)

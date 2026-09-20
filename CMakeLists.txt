@@ -39,6 +39,7 @@ set(GLFW_SDL_SOURCES
     src/init.c
     src/input.c
     src/keys.c
+    src/log.c
     src/monitor.c
     src/native.c
     src/vulkan.c
