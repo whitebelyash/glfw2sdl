@@ -97,6 +97,12 @@ SDL_VIDEODRIVER=dummy ./build/glfw_smoke_test   # zero failures, exit 0
   stored/returned; there is no compositor round-trip.
 * `glfwRawMouseMotionSupported` returns `GLFW_TRUE`; raw motion is requested
   via SDL relative mouse mode where available.
+* **Input modes:** all GLFW 3.5 modes are accepted, including
+  `GLFW_UNLIMITED_MOUSE_BUTTONS` (stored; lifts the button limit for the
+  mouse button callback — SDL itself reports only a handful of buttons) and
+  `GLFW_IME` (maps to `SDL_StartTextInput`/`SDL_StopTextInput`, so the OS
+  IME follows the window). Rejecting these would emit `GLFW_INVALID_ENUM`
+  and break input in recent Minecraft/LWJGL builds.
 * Clipboard, timers (`SDL_GetPerformanceCounter`), `glfwPostEmptyEvent`
   (injects `SDL_EVENT_USER`) all map 1:1.
 
@@ -108,7 +114,10 @@ SDL_VIDEODRIVER=dummy ./build/glfw_smoke_test   # zero failures, exit 0
   ints) so every symbol still exports and links. Define all
   `GLFW_EXPOSE_NATIVE_*` macros — every native symbol is exported.
 * **IME** (`glfwSetPreeditCallback` etc.) stores the group and callbacks;
-  SDL3 exposes no preedit/candidate events, so callbacks never fire.
+  the preedit cursor rectangle is forwarded via `SDL_SetTextInputArea`, but
+  SDL3 exposes no preedit/candidate events, so the preedit callbacks never
+  fire. The `GLFW_IME` input mode itself is fully functional through
+  `SDL_StartTextInput` / `SDL_StopTextInput`.
 * **`glfwInitAllocator`** accepts and stores a custom allocator, but libc/SDL
   still do the actual allocation (SDL3 has no allocator hook).
 * **`glfwInitVulkanLoader`** is accepted and stored; `glfwGetInstanceProcAddress`
@@ -124,11 +133,32 @@ version-conditional code is required. The shim itself reports GLFW 3.5.0 and
 resets hints exactly like real GLFW 3.5.0 (`glfwInit` calls
 `glfwDefaultWindowHints()`; confirmed against the vendored reference sources).
 
+> Note: since SDL 3.2.0, `SDL_GetVersion()` returns a packed `int`
+> (`major*10^6 + minor*10^3 + patch`); both supported SDL versions use this
+> form, so the shim decodes it directly.
+
+## Logging
+* Every `glfwInit` installs an SDL log output function that forwards
+  `SDL_Log` traffic to **stdout**, one line per message, prefixed
+  `[SDL3:<priority>]` (`trace`/`verbose`/`debug`/`info`/`warn`/`error`/
+  `critical`). SDL's own boot-time messages therefore appear on stdout too.
+* After successful init a one-line boot banner is logged: the shim version
+  string, the linked SDL version (`SDL_GetVersion`), the active SDL video
+  driver (`SDL_GetCurrentVideoDriver`, e.g. `dummy`, `x11`, `wayland`) and
+  the resolved GLFW platform token.
+* The previous SDL log sink — the SDL default or a host-customised one set
+  via `SDL_LogSetOutputFunction` before `glfwInit` — is saved, and restored
+  at `glfwTerminate`. A later `glfwInit` re-installs the redirect.
+* GLFW-level errors keep their GLFW semantics: they go to the
+  `glfwSetErrorCallback` callback and `glfwGetError`, never through
+  `SDL_Log`.
+
 ## Layout
 
 ```
 include/GLFW/   real GLFW 3.5.0 public headers (zlib, vendored)
-src/            shim implementation, one C file per GLFW module
+src/            shim implementation, one C file per GLFW module (+ log.c
+                for SDL_Log redirection and boot diagnostics)
 tests/          headless GLFW-conformance smoke test
 CMakeLists.txt  shared lib "glfw" (libglfw.so, SOVERSION 3.5) + smoke test
 ```

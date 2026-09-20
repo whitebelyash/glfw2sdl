@@ -119,11 +119,14 @@ typedef struct _GLFWwindow
     char **dropPaths;
     int dropPathCount, dropPathCapacity;
 
-    /* IME state (stored only; SDL3 does not expose preedit events) */
+    /* IME state (SDL3 exposes no preedit/candidate events; the input mode
+     * maps to SDL text input and the rect to SDL_SetTextInputArea) */
     GLFWpreeditfun            preeditCb;
     GLFWimestatusfun          imeStatusCb;
     GLFWpreeditcandidatefun   preeditCandidateCb;
     int preeditX, preeditY, preeditW, preeditH;
+    bool imeEnabled;                  /* GLFW_IME input mode */
+    bool unlimitedMouseButtons;       /* GLFW_UNLIMITED_MOUSE_BUTTONS mode */
 } _GLFWwindow;
 
 /* ------------------------------------------------------------------ */
@@ -188,6 +191,12 @@ typedef struct _GLFWglobal
      * plain address; SDL owns the loader, so this is compatibility only). */
     void *vkLoader;
 
+    /* SDL_Log redirection installed by glfwInit and restored by
+     * glfwTerminate (boot diagnostics -> stdout, see log.c). */
+    bool logRedirected;
+    SDL_LogOutputFunction prevLogOutput;
+    void *prevLogUserdata;
+
     _GLFWjoystick joysticks[GLFW_JOYSTICK_LAST + 1];
 
     /* Time */
@@ -241,6 +250,11 @@ void _glfwApplyCursor(_GLFWwindow *window);
 /* events.c */
 void _glfwPumpEvents(void);
 bool _glfwAcceptsEvents(void); /* platform uses poll/wait */
+
+/* log.c -- SDL_Log redirection + boot diagnostics */
+void _glfwInstallLogOutput(void);
+void _glfwRestoreLogOutput(void);
+void _glfwLogBootInfo(void);
 
 /* C11 thread-local error state lives in error.c */
 

@@ -185,6 +185,22 @@ int main(void)
     CHECK(glfwGetInputMode(window, GLFW_RAW_MOUSE_MOTION) == GLFW_TRUE,
           "raw mouse motion round-trips");
 
+    /* GLFW 3.5 input modes used by recent Minecraft/LWJGL builds; a shim
+     * that rejects them raises GLFW_INVALID_ENUM and breaks their input. */
+    glfwSetInputMode(window, GLFW_IME, GLFW_TRUE);
+    CHECK(glfwGetInputMode(window, GLFW_IME) == GLFW_TRUE,
+          "IME input mode round-trips TRUE");
+    glfwSetInputMode(window, GLFW_IME, GLFW_FALSE);
+    CHECK(glfwGetInputMode(window, GLFW_IME) == GLFW_FALSE,
+          "IME input mode round-trips FALSE");
+
+    glfwSetInputMode(window, GLFW_UNLIMITED_MOUSE_BUTTONS, GLFW_TRUE);
+    CHECK(glfwGetInputMode(window, GLFW_UNLIMITED_MOUSE_BUTTONS) == GLFW_TRUE,
+          "unlimited mouse buttons round-trips TRUE");
+    glfwSetInputMode(window, GLFW_UNLIMITED_MOUSE_BUTTONS, GLFW_FALSE);
+    CHECK(glfwGetInputMode(window, GLFW_UNLIMITED_MOUSE_BUTTONS) == GLFW_FALSE,
+          "unlimited mouse buttons round-trips FALSE");
+
     glfwGetKey(window, GLFW_KEY_ESCAPE);
     glfwGetKeyName(GLFW_KEY_A, 0);
     glfwGetKeyScancode(GLFW_KEY_ESCAPE);
